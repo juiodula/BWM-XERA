@@ -13,7 +13,7 @@ const GIFTED_API_KEY = "gifted";
 // Helper function to extract response from various API formats
 function extractResponse(data) {
     const possibleFields = [
-        'download_url', 'url', 'hd_video', 'video_url', 'audio_url', 'link',
+        'download_url', 'url_abu', 'hd_video', 'video_url', 'audio_url', 'link',
         'downloadUrl', 'alternativeUrl', 'HD', 'hd', 'withoutwatermark', 
         'noWatermark', 'result', 'response', 'BK9', 'message', 'data', 
         'video', 'audio', 'video_no_watermark', 'nwm'
