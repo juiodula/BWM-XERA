@@ -4,37 +4,53 @@ const axios = require('axios');
 // API key for giftedtech API
 const GIFTED_API_KEY = "gifted";
 
-// Helper function to extract only video and audio URLs from response
+// Enhanced function to extract video and audio URLs from response
 function extractMedia(data) {
     const result = {
         videos: [],
         audios: []
     };
 
+    // List of possible video fields to check
+    const videoFields = [
+        'download_url', 'url', 'hd_video', 'video_url', 
+        'video_no_watermark', 'nwm', 'videoWithWatermark',
+        'videoWithoutWatermark', 'video_hd', 'video_sd',
+        'video', 'link', 'downloadUrl'
+    ];
+
+    // List of possible audio fields to check
+    const audioFields = [
+        'audio_url', 'audio', 'download_url', 'url',
+        'link', 'downloadUrl'
+    ];
+
     // Recursive function to scan the object
-    function scanObject(obj) {
+    function scanObject(obj, path = '') {
         if (!obj || typeof obj !== 'object') return;
 
-        // Check if current object has media properties
-        if (obj.url && obj.url.match(/\.(mp4|mov|webm)$/i)) {
-            result.videos.push(obj.url);
-        } else if (obj.url && obj.url.match(/\.(mp3|m4a|ogg)$/i)) {
-            result.audios.push(obj.url);
+        // Check all possible video fields
+        for (const field of videoFields) {
+            if (obj[field] && typeof obj[field] === 'string') {
+                // Check if URL looks like a video (may not have extension)
+                if (obj[field].match(/\.(mp4|mov|webm)$/i) || 
+                   obj[field].match(/video|mp4|mov|webm/i)) {
+                    if (!result.videos.includes(obj[field])) {
+                        result.videos.push(obj[field]);
+                    }
+                }
+            }
         }
 
-        // Check for known media fields
-        const mediaFields = [
-            'download_url', 'url', 'hd_video', 'video_url', 'audio_url', 'link',
-            'downloadUrl', 'video', 'audio', 'video_no_watermark', 'nwm',
-            'videoWithWatermark', 'videoWithoutWatermark', 'video_hd', 'video_sd'
-        ];
-
-        for (const field of mediaFields) {
+        // Check all possible audio fields
+        for (const field of audioFields) {
             if (obj[field] && typeof obj[field] === 'string') {
-                if (obj[field].match(/\.(mp4|mov|webm)$/i)) {
-                    result.videos.push(obj[field]);
-                } else if (obj[field].match(/\.(mp3|m4a|ogg)$/i)) {
-                    result.audios.push(obj[field]);
+                // Check if URL looks like audio (may not have extension)
+                if (obj[field].match(/\.(mp3|m4a|ogg)$/i) || 
+                   obj[field].match(/audio|mp3|m4a|ogg/i)) {
+                    if (!result.audios.includes(obj[field])) {
+                        result.audios.push(obj[field]);
+                    }
                 }
             }
         }
@@ -42,7 +58,18 @@ function extractMedia(data) {
         // Recursively scan all properties
         for (const key in obj) {
             if (typeof obj[key] === 'object') {
-                scanObject(obj[key]);
+                scanObject(obj[key], `${path}.${key}`);
+            } else if (typeof obj[key] === 'string' && key.toLowerCase().includes('url')) {
+                // Check any URL field that might contain media
+                if (obj[key].match(/\.(mp4|mov|webm)$/i)) {
+                    if (!result.videos.includes(obj[key])) {
+                        result.videos.push(obj[key]);
+                    }
+                } else if (obj[key].match(/\.(mp3|m4a|ogg)$/i)) {
+                    if (!result.audios.includes(obj[key])) {
+                        result.audios.push(obj[key]);
+                    }
+                }
             }
         }
     }
@@ -124,31 +151,45 @@ adams({
             }
         });
 
-        // Extract only video and audio media from response
+        // Extract media from response
         const media = extractMedia(response.data || {});
+
+        // Debug: Log the response and extracted media
+        console.log('API Response:', response.data);
+        console.log('Extracted Media:', media);
 
         // Send all available media
         if (media.videos.length > 0 || media.audios.length > 0) {
             // Send videos first
             for (const videoUrl of media.videos) {
-                await zk.sendMessage(dest, {
-                    video: { url: videoUrl },
-                    caption: `Downloaded from ${platform.name} by BWM XMD`,
-                    gifPlayback: false
-                }, { quoted: ms });
+                try {
+                    await zk.sendMessage(dest, {
+                        video: { url: videoUrl },
+                        caption: `Downloaded from ${platform.name} by BWM XMD`,
+                        gifPlayback: false
+                    }, { quoted: ms });
+                } catch (videoError) {
+                    console.error('Error sending video:', videoError);
+                }
             }
 
             // Then send audios
             for (const audioUrl of media.audios) {
-                await zk.sendMessage(dest, {
-                    audio: { url: audioUrl },
-                    mimetype: 'audio/mpeg',
-                    fileName: `${platform.name.toLowerCase()}_audio.mp3`,
-                    caption: `Downloaded from ${platform.name} by BWM XMD`
-                }, { quoted: ms });
+                try {
+                    await zk.sendMessage(dest, {
+                        audio: { url: audioUrl },
+                        mimetype: 'audio/mpeg',
+                        fileName: `${platform.name.toLowerCase()}_audio.mp3`,
+                        caption: `Downloaded from ${platform.name} by BWM XMD`
+                    }, { quoted: ms });
+                } catch (audioError) {
+                    console.error('Error sending audio:', audioError);
+                }
             }
         } else {
-            return repondre(`No video or audio found from ${platform.name}`);
+            // If no media found, show the API response for debugging
+            console.log('Full API Response:', response.data);
+            return repondre(`❌ No video or audio found in the response from ${platform.name}. Please try another URL.`);
         }
 
     } catch (error) {
