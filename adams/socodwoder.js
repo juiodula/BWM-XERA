@@ -8,14 +8,15 @@ const gis = require('g-i-s');
 const ytSearch = require("yt-search");
 
 // API key for giftedtech API
-const GIFTED_API_KEY = "gifted_api_6kuv56877d";
+const GIFTED_API_KEY = "gifted";
 
 // Helper function to extract response from various API formats
 function extractResponse(data) {
     const possibleFields = [
-        'download_url', 'noWatermark', 'hd_video', 'video_url', 'audio_url', 'link_url',
+        'download_url', 'url', 'hd_video', 'video_url', 'audio_url', 'link',
         'downloadUrl', 'alternativeUrl', 'HD', 'hd', 'withoutwatermark', 
-        'result', 'response', 'BK9', 'message', 'data', 'video', 'audio'
+        'noWatermark', 'result', 'response', 'BK9', 'message', 'data', 
+        'video', 'audio', 'video_no_watermark', 'nwm'
     ];
     
     for (const field of possibleFields) {
@@ -28,6 +29,54 @@ function extractResponse(data) {
     }
     return data; // Return the entire response if no known field found
 }
+
+// Platform-specific API endpoints
+const API_ENDPOINTS = {
+    twitter: {
+        name: "Twitter",
+        url: (url) => `https://api.giftedtech.co.ke/api/download/twitter?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
+    },
+    tiktok: {
+        name: "TikTok",
+        url: (url) => `https://api.giftedtech.co.ke/api/download/tiktok?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}&noWatermark=true`
+    },
+    instagram: {
+        name: "Instagram",
+        url: (url) => `https://api.giftedtech.co.ke/api/download/instadl?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
+    },
+    youtube: {
+        name: "YouTube",
+        url: (url) => `https://api.giftedtech.co.ke/api/download/ytdlv2?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
+    },
+    facebook: {
+        name: "Facebook",
+        url: (url) => `https://api.giftedtech.co.ke/api/download/facebook?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
+    },
+    pinterest: {
+        name: "Pinterest",
+        url: (url) => `https://api.giftedtech.co.ke/api/download/pinterestdl?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
+    },
+    mediafire: {
+        name: "Mediafire",
+        url: (url) => `https://api.giftedtech.co.ke/api/download/mediafire?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
+    },
+    googledrive: {
+        name: "Google Drive",
+        url: (url) => `https://api.giftedtech.co.ke/api/download/gdrivedl?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
+    },
+    github: {
+        name: "GitHub",
+        url: (url) => `https://api.giftedtech.co.ke/api/download/gitclone?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
+    },
+    pastebin: {
+        name: "Pastebin",
+        url: (url) => `https://api.giftedtech.co.ke/api/download/pastebin?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
+    },
+    spotify: {
+        name: "Spotify",
+        url: (url) => `https://api.giftedtech.co.ke/api/download/spotifydl?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
+    }
+};
 
 // Generic Downloader Command
 adams({
@@ -43,33 +92,34 @@ adams({
 
     try {
         // Detect platform and select appropriate endpoint
-        let apiUrl;
+        let platform;
         if (url.includes('twitter.com') || url.includes('x.com')) {
-            apiUrl = `https://api.giftedtech.co.ke/api/download/twitter?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`;
+            platform = API_ENDPOINTS.twitter;
         } else if (url.includes('tiktok.com')) {
-            apiUrl = `https://api.giftedtech.co.ke/api/download/tiktokdlv2?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`;
+            platform = API_ENDPOINTS.tiktok;
         } else if (url.includes('instagram.com')) {
-            apiUrl = `https://api.giftedtech.co.ke/api/download/instadl?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`;
+            platform = API_ENDPOINTS.instagram;
         } else if (url.includes('youtube.com') || url.includes('youtu.be')) {
-            apiUrl = `https://api.giftedtech.co.ke/api/download/ytdlv2?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`;
+            platform = API_ENDPOINTS.youtube;
         } else if (url.includes('facebook.com')) {
-            apiUrl = `https://api.giftedtech.co.ke/api/download/facebook?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`;
+            platform = API_ENDPOINTS.facebook;
         } else if (url.includes('pinterest.com') || url.includes('pin.it')) {
-            apiUrl = `https://api.giftedtech.co.ke/api/download/pinterestdl?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`;
+            platform = API_ENDPOINTS.pinterest;
         } else if (url.includes('mediafire.com')) {
-            apiUrl = `https://api.giftedtech.co.ke/api/download/mediafire?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`;
+            platform = API_ENDPOINTS.mediafire;
         } else if (url.includes('drive.google.com')) {
-            apiUrl = `https://api.giftedtech.co.ke/api/download/gdrivedl?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`;
+            platform = API_ENDPOINTS.googledrive;
         } else if (url.includes('github.com')) {
-            apiUrl = `https://api.giftedtech.co.ke/api/download/gitclone?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`;
+            platform = API_ENDPOINTS.github;
         } else if (url.includes('pastebin.com')) {
-            apiUrl = `https://api.giftedtech.co.ke/api/download/pastebin?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`;
+            platform = API_ENDPOINTS.pastebin;
         } else if (url.includes('open.spotify.com')) {
-            apiUrl = `https://api.giftedtech.co.ke/api/download/spotifydl?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`;
+            platform = API_ENDPOINTS.spotify;
         } else {
-            return repondre('Unsupported platform. Supported: Twitter, TikTok, Instagram, YouTube, Facebook, Pinterest, Mediafire, Google Drive, GitHub, Pastebin, Spotify');
+            return repondre(`Unsupported platform. Supported: ${Object.values(API_ENDPOINTS).map(p => p.name).join(', ')}`);
         }
 
+        const apiUrl = platform.url(url);
         const response = await axios.get(apiUrl, {
             timeout: 15000,
             validateStatus: function (status) {
@@ -82,7 +132,7 @@ adams({
         const downloadUrl = extractResponse(responseData);
 
         if (!downloadUrl) {
-            return repondre('No downloadable content found in the response');
+            return repondre(`No downloadable content found from ${platform.name}`);
         }
 
         // Determine content type
@@ -94,25 +144,27 @@ adams({
         if (isVideo) {
             await zk.sendMessage(dest, {
                 video: { url: downloadUrl },
-                caption: 'Downloaded by BWM XMD',
+                caption: `Downloaded from ${platform.name} by BWM XMD`,
                 gifPlayback: false
             }, { quoted: ms });
         } else if (isAudio) {
             await zk.sendMessage(dest, {
                 audio: { url: downloadUrl },
                 mimetype: 'audio/mpeg',
-                fileName: 'downloaded_audio.mp3'
+                fileName: `${platform.name.toLowerCase()}_audio.mp3`,
+                caption: `Downloaded from ${platform.name} by BWM XMD`
             }, { quoted: ms });
         } else if (isImage) {
             await zk.sendMessage(dest, {
                 image: { url: downloadUrl },
-                caption: 'Downloaded by BWM XMD'
+                caption: `Downloaded from ${platform.name} by BWM XMD`
             }, { quoted: ms });
         } else {
             // Default to document for unknown types
             await zk.sendMessage(dest, {
                 document: { url: downloadUrl },
-                fileName: 'downloaded_file'
+                fileName: `downloaded_from_${platform.name.toLowerCase()}`,
+                caption: `Downloaded from ${platform.name} by BWM XMD`
             }, { quoted: ms });
         }
 
@@ -150,7 +202,7 @@ adams({
     if (!url) return repondre('Please provide a YouTube URL');
 
     try {
-        const response = await axios.get(`https://api.giftedtech.co.ke/api/download/ytdlv2?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`);
+        const response = await axios.get(`https://api.giftedtech.co.ke/api/download/ytdlv2?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}&type=mp3`);
         const audioUrl = extractResponse(response.data);
         
         if (!audioUrl) throw new Error('No audio URL found in response');
@@ -168,39 +220,61 @@ adams({
     }
 });
 
-// Ringtone Downloader
+// YouTube Video Downloader
 adams({
-    nomCom: "ringtone",
-    aliases: ["rtone"],
-    desc: "Download ringtones",
+    nomCom: "ytmp4",
+    aliases: ["ytvideo"],
+    desc: "Download YouTube videos",
     categorie: "Download"
 }, async (dest, zk, commandeOptions) => {
     const { ms, repondre, arg } = commandeOptions;
-    const query = arg.join(' ');
+    const url = arg.join(' ');
 
-    if (!query) return repondre('Please provide a search term (e.g. Quran)');
+    if (!url) return repondre('Please provide a YouTube URL');
 
     try {
-        // Using YouTube search as fallback since the API doesn't have a specific ringtone endpoint
-        const searchResults = await ytSearch(query);
-        const video = searchResults.videos[0];
-        if (!video) throw new Error('No results found');
+        const response = await axios.get(`https://api.giftedtech.co.ke/api/download/ytdlv2?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`);
+        const videoUrl = extractResponse(response.data);
         
-        const response = await axios.get(`https://api.giftedtech.co.ke/api/download/ytdlv2?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(video.url)}`);
-        const audioUrl = extractResponse(response.data);
-        
-        if (!audioUrl) throw new Error('No audio URL found in response');
+        if (!videoUrl) throw new Error('No video URL found in response');
 
         await zk.sendMessage(dest, {
-            audio: { url: audioUrl },
-            mimetype: 'audio/mpeg',
-            fileName: 'ringtone.mp3',
-            caption: `Ringtone: ${video.title} - Downloaded by BWM XMD`
+            video: { url: videoUrl },
+            caption: 'YouTube video downloaded by BWM XMD'
         }, { quoted: ms });
 
     } catch (error) {
-        console.error('Ringtone download error:', error);
-        repondre('❌ Failed to download ringtone. Please try a different search term.');
+        console.error('YouTube video download error:', error);
+        repondre('❌ Failed to download YouTube video. Please check the URL and try again.');
+    }
+});
+
+// TikTok Downloader (with no watermark)
+adams({
+    nomCom: "tiktok",
+    aliases: ["ttdl"],
+    desc: "Download TikTok videos without watermark",
+    categorie: "Download"
+}, async (dest, zk, commandeOptions) => {
+    const { ms, repondre, arg } = commandeOptions;
+    const url = arg.join(' ');
+
+    if (!url) return repondre('Please provide a TikTok URL');
+
+    try {
+        const response = await axios.get(`https://api.giftedtech.co.ke/api/download/tiktok?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}&noWatermark=true`);
+        const videoUrl = extractResponse(response.data);
+        
+        if (!videoUrl) throw new Error('No video URL found in response');
+
+        await zk.sendMessage(dest, {
+            video: { url: videoUrl },
+            caption: 'TikTok video (no watermark) downloaded by BWM XMD'
+        }, { quoted: ms });
+
+    } catch (error) {
+        console.error('TikTok download error:', error);
+        repondre('❌ Failed to download TikTok video. Please check the URL and try again.');
     }
 });
 
@@ -242,35 +316,6 @@ adams({
     }
 });
 
-// YouTube Video Downloader
-adams({
-    nomCom: "ytmp4",
-    aliases: ["ytvideo"],
-    desc: "Download YouTube videos",
-    categorie: "Download"
-}, async (dest, zk, commandeOptions) => {
-    const { ms, repondre, arg } = commandeOptions;
-    const url = arg.join(' ');
-
-    if (!url) return repondre('Please provide a YouTube URL');
-
-    try {
-        const response = await axios.get(`https://api.giftedtech.co.ke/api/download/ytdlv2?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`);
-        const videoUrl = extractResponse(response.data);
-        
-        if (!videoUrl) throw new Error('No video URL found in response');
-
-        await zk.sendMessage(dest, {
-            video: { url: videoUrl },
-            caption: 'YouTube video downloaded by BWM XMD'
-        }, { quoted: ms });
-
-    } catch (error) {
-        console.error('YouTube video download error:', error);
-        repondre('❌ Failed to download YouTube video. Please check the URL and try again.');
-    }
-});
-
 // Spotify Downloader
 adams({
     nomCom: "spotify",
@@ -301,5 +346,3 @@ adams({
         repondre('❌ Failed to download Spotify track. Please check the URL and try again.');
     }
 });
-
-    
