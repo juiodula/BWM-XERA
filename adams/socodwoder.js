@@ -1,33 +1,54 @@
 const { adams } = require('../Ibrahim/adams');
 const axios = require('axios');
-const fs = require('fs-extra');
-const { mediafireDl } = require("../Ibrahim/Function");
-const conf = require(__dirname + "/../config");
-const ffmpeg = require("fluent-ffmpeg");
-const gis = require('g-i-s');
-const ytSearch = require("yt-search");
 
 // API key for giftedtech API
 const GIFTED_API_KEY = "gifted";
 
-// Helper function to extract response from various API formats
-function extractResponse(data) {
-    const possibleFields = [
-        'download_url', 'url', 'hd_video', 'video_url', 'audio_url', 'link',
-        'downloadUrl', 'alternativeUrl', 'HD', 'hd', 'withoutwatermark', 
-        'noWatermark', 'result', 'response', 'BK9', 'message', 'data', 
-        'video', 'audio', 'video_no_watermark', 'nwm'
-    ];
-    
-    for (const field of possibleFields) {
-        if (data[field]) {
-            if (typeof data[field] === 'object') {
-                return extractResponse(data[field]); // Recursively check nested objects
+// Helper function to extract only video and audio URLs from response
+function extractMedia(data) {
+    const result = {
+        videos: [],
+        audios: []
+    };
+
+    // Recursive function to scan the object
+    function scanObject(obj) {
+        if (!obj || typeof obj !== 'object') return;
+
+        // Check if current object has media properties
+        if (obj.url && obj.url.match(/\.(mp4|mov|webm)$/i)) {
+            result.videos.push(obj.url);
+        } else if (obj.url && obj.url.match(/\.(mp3|m4a|ogg)$/i)) {
+            result.audios.push(obj.url);
+        }
+
+        // Check for known media fields
+        const mediaFields = [
+            'download_url', 'url', 'hd_video', 'video_url', 'audio_url', 'link',
+            'downloadUrl', 'video', 'audio', 'video_no_watermark', 'nwm',
+            'videoWithWatermark', 'videoWithoutWatermark', 'video_hd', 'video_sd'
+        ];
+
+        for (const field of mediaFields) {
+            if (obj[field] && typeof obj[field] === 'string') {
+                if (obj[field].match(/\.(mp4|mov|webm)$/i)) {
+                    result.videos.push(obj[field]);
+                } else if (obj[field].match(/\.(mp3|m4a|ogg)$/i)) {
+                    result.audios.push(obj[field]);
+                }
             }
-            return data[field];
+        }
+
+        // Recursively scan all properties
+        for (const key in obj) {
+            if (typeof obj[key] === 'object') {
+                scanObject(obj[key]);
+            }
         }
     }
-    return data; // Return the entire response if no known field found
+
+    scanObject(data);
+    return result;
 }
 
 // Platform-specific API endpoints
@@ -55,22 +76,6 @@ const API_ENDPOINTS = {
     pinterest: {
         name: "Pinterest",
         url: (url) => `https://api.giftedtech.co.ke/api/download/pinterestdl?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
-    },
-    mediafire: {
-        name: "Mediafire",
-        url: (url) => `https://api.giftedtech.co.ke/api/download/mediafire?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
-    },
-    googledrive: {
-        name: "Google Drive",
-        url: (url) => `https://api.giftedtech.co.ke/api/download/gdrivedl?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
-    },
-    github: {
-        name: "GitHub",
-        url: (url) => `https://api.giftedtech.co.ke/api/download/gitclone?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
-    },
-    pastebin: {
-        name: "Pastebin",
-        url: (url) => `https://api.giftedtech.co.ke/api/download/pastebin?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`
     },
     spotify: {
         name: "Spotify",
@@ -105,14 +110,6 @@ adams({
             platform = API_ENDPOINTS.facebook;
         } else if (url.includes('pinterest.com') || url.includes('pin.it')) {
             platform = API_ENDPOINTS.pinterest;
-        } else if (url.includes('mediafire.com')) {
-            platform = API_ENDPOINTS.mediafire;
-        } else if (url.includes('drive.google.com')) {
-            platform = API_ENDPOINTS.googledrive;
-        } else if (url.includes('github.com')) {
-            platform = API_ENDPOINTS.github;
-        } else if (url.includes('pastebin.com')) {
-            platform = API_ENDPOINTS.pastebin;
         } else if (url.includes('open.spotify.com')) {
             platform = API_ENDPOINTS.spotify;
         } else {
@@ -123,69 +120,40 @@ adams({
         const response = await axios.get(apiUrl, {
             timeout: 15000,
             validateStatus: function (status) {
-                return status < 500; // Reject only if status code is >= 500
+                return status < 500;
             }
         });
 
-        // Handle various API response formats
-        const responseData = response.data || {};
-        const downloadUrl = extractResponse(responseData);
+        // Extract only video and audio media from response
+        const media = extractMedia(response.data || {});
 
-        if (!downloadUrl) {
-            return repondre(`No downloadable content found from ${platform.name}`);
-        }
+        // Send all available media
+        if (media.videos.length > 0 || media.audios.length > 0) {
+            // Send videos first
+            for (const videoUrl of media.videos) {
+                await zk.sendMessage(dest, {
+                    video: { url: videoUrl },
+                    caption: `Downloaded from ${platform.name} by BWM XMD`,
+                    gifPlayback: false
+                }, { quoted: ms });
+            }
 
-        // Determine content type
-        const isVideo = downloadUrl.includes('.mp4') || downloadUrl.includes('.mov') || downloadUrl.includes('.webm');
-        const isAudio = downloadUrl.includes('.mp3') || downloadUrl.includes('.m4a') || downloadUrl.includes('.ogg');
-        const isImage = downloadUrl.includes('.jpg') || downloadUrl.includes('.png') || downloadUrl.includes('.webp');
-
-        // Send appropriate media type
-        if (isVideo) {
-            await zk.sendMessage(dest, {
-                video: { url: downloadUrl },
-                caption: `Downloaded from ${platform.name} by BWM XMD`,
-                gifPlayback: false
-            }, { quoted: ms });
-        } else if (isAudio) {
-            await zk.sendMessage(dest, {
-                audio: { url: downloadUrl },
-                mimetype: 'audio/mpeg',
-                fileName: `${platform.name.toLowerCase()}_audio.mp3`,
-                caption: `Downloaded from ${platform.name} by BWM XMD`
-            }, { quoted: ms });
-        } else if (isImage) {
-            await zk.sendMessage(dest, {
-                image: { url: downloadUrl },
-                caption: `Downloaded from ${platform.name} by BWM XMD`
-            }, { quoted: ms });
+            // Then send audios
+            for (const audioUrl of media.audios) {
+                await zk.sendMessage(dest, {
+                    audio: { url: audioUrl },
+                    mimetype: 'audio/mpeg',
+                    fileName: `${platform.name.toLowerCase()}_audio.mp3`,
+                    caption: `Downloaded from ${platform.name} by BWM XMD`
+                }, { quoted: ms });
+            }
         } else {
-            // Default to document for unknown types
-            await zk.sendMessage(dest, {
-                document: { url: downloadUrl },
-                fileName: `downloaded_from_${platform.name.toLowerCase()}`,
-                caption: `Downloaded from ${platform.name} by BWM XMD`
-            }, { quoted: ms });
+            return repondre(`No video or audio found from ${platform.name}`);
         }
 
     } catch (error) {
         console.error('Download error:', error);
-        
-        let errorMessage = 'Failed to download content';
-        if (error.response) {
-            // Handle HTTP errors
-            if (error.response.status === 400) {
-                errorMessage = 'Invalid URL or request format';
-            } else if (error.response.status === 404) {
-                errorMessage = 'Content not found';
-            } else if (error.response.data && error.response.data.message) {
-                errorMessage = error.response.data.message;
-            }
-        } else if (error.message.includes('timeout')) {
-            errorMessage = 'Request timed out. Please try again.';
-        }
-        
-        repondre(`❌ ${errorMessage}`);
+        repondre('❌ Failed to download content. Please check the URL and try again.');
     }
 });
 
@@ -203,16 +171,21 @@ adams({
 
     try {
         const response = await axios.get(`https://api.giftedtech.co.ke/api/download/ytdlv2?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}&type=mp3`);
-        const audioUrl = extractResponse(response.data);
+        const media = extractMedia(response.data || {});
         
-        if (!audioUrl) throw new Error('No audio URL found in response');
+        if (media.audios.length === 0) {
+            throw new Error('No audio URL found in response');
+        }
 
-        await zk.sendMessage(dest, {
-            audio: { url: audioUrl },
-            mimetype: 'audio/mpeg',
-            fileName: 'youtube_audio.mp3',
-            caption: 'YouTube audio downloaded by BWM XMD'
-        }, { quoted: ms });
+        // Send all audio files found
+        for (const audioUrl of media.audios) {
+            await zk.sendMessage(dest, {
+                audio: { url: audioUrl },
+                mimetype: 'audio/mpeg',
+                fileName: 'youtube_audio.mp3',
+                caption: 'YouTube audio downloaded by BWM XMD'
+            }, { quoted: ms });
+        }
 
     } catch (error) {
         console.error('YouTube MP3 download error:', error);
@@ -234,14 +207,19 @@ adams({
 
     try {
         const response = await axios.get(`https://api.giftedtech.co.ke/api/download/ytdlv2?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`);
-        const videoUrl = extractResponse(response.data);
+        const media = extractMedia(response.data || {});
         
-        if (!videoUrl) throw new Error('No video URL found in response');
+        if (media.videos.length === 0) {
+            throw new Error('No video URL found in response');
+        }
 
-        await zk.sendMessage(dest, {
-            video: { url: videoUrl },
-            caption: 'YouTube video downloaded by BWM XMD'
-        }, { quoted: ms });
+        // Send all video files found
+        for (const videoUrl of media.videos) {
+            await zk.sendMessage(dest, {
+                video: { url: videoUrl },
+                caption: 'YouTube video downloaded by BWM XMD'
+            }, { quoted: ms });
+        }
 
     } catch (error) {
         console.error('YouTube video download error:', error);
@@ -263,56 +241,23 @@ adams({
 
     try {
         const response = await axios.get(`https://api.giftedtech.co.ke/api/download/tiktok?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}&noWatermark=true`);
-        const videoUrl = extractResponse(response.data);
+        const media = extractMedia(response.data || {});
         
-        if (!videoUrl) throw new Error('No video URL found in response');
+        if (media.videos.length === 0) {
+            throw new Error('No video URL found in response');
+        }
 
-        await zk.sendMessage(dest, {
-            video: { url: videoUrl },
-            caption: 'TikTok video (no watermark) downloaded by BWM XMD'
-        }, { quoted: ms });
+        // Send all video files found
+        for (const videoUrl of media.videos) {
+            await zk.sendMessage(dest, {
+                video: { url: videoUrl },
+                caption: 'TikTok video (no watermark) downloaded by BWM XMD'
+            }, { quoted: ms });
+        }
 
     } catch (error) {
         console.error('TikTok download error:', error);
         repondre('❌ Failed to download TikTok video. Please check the URL and try again.');
-    }
-});
-
-// APK Downloader
-adams({
-    nomCom: "apk",
-    aliases: ["apkdl"],
-    desc: "Download APK files",
-    categorie: "Download"
-}, async (dest, zk, commandeOptions) => {
-    const { ms, repondre, arg } = commandeOptions;
-    const packageName = arg.join(' ');
-
-    if (!packageName) return repondre('Please provide an app package name (e.g. com.whatsapp) or app name (e.g. WhatsApp)');
-
-    try {
-        const response = await axios.get(`https://api.giftedtech.co.ke/api/download/apkdl?apikey=${GIFTED_API_KEY}&appName=${encodeURIComponent(packageName)}`, {
-            timeout: 20000 // Longer timeout for APK downloads
-        });
-
-        const responseData = response.data || {};
-        const apkUrl = extractResponse(responseData);
-        const appName = responseData.name || packageName || 'app';
-
-        if (!apkUrl) {
-            return repondre('APK not found for the specified package');
-        }
-
-        await zk.sendMessage(dest, {
-            document: { url: apkUrl },
-            mimetype: 'application/vnd.android.package-archive',
-            fileName: `${appName.replace(/\s+/g, '_')}.apk`,
-            caption: `${appName} APK - Downloaded by BWM XMD`
-        }, { quoted: ms });
-
-    } catch (error) {
-        console.error('APK download error:', error);
-        repondre('❌ Failed to download APK. Please check the package name and try again.');
     }
 });
 
@@ -330,16 +275,21 @@ adams({
 
     try {
         const response = await axios.get(`https://api.giftedtech.co.ke/api/download/spotifydl?apikey=${GIFTED_API_KEY}&url=${encodeURIComponent(url)}`);
-        const audioUrl = extractResponse(response.data);
+        const media = extractMedia(response.data || {});
         
-        if (!audioUrl) throw new Error('No audio URL found in response');
+        if (media.audios.length === 0) {
+            throw new Error('No audio URL found in response');
+        }
 
-        await zk.sendMessage(dest, {
-            audio: { url: audioUrl },
-            mimetype: 'audio/mpeg',
-            fileName: 'spotify_track.mp3',
-            caption: 'Spotify track downloaded by BWM XMD'
-        }, { quoted: ms });
+        // Send all audio files found
+        for (const audioUrl of media.audios) {
+            await zk.sendMessage(dest, {
+                audio: { url: audioUrl },
+                mimetype: 'audio/mpeg',
+                fileName: 'spotify_track.mp3',
+                caption: 'Spotify track downloaded by BWM XMD'
+            }, { quoted: ms });
+        }
 
     } catch (error) {
         console.error('Spotify download error:', error);
