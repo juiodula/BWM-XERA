@@ -2,7 +2,7 @@ const { adams } = require('../Ibrahim/adams');
 const axios = require('axios');
 
 // API key for giftedtech API
-const GIFTED_API_KEY = "gifted";
+const GIFTED_API_KEY = "gifted_api_6kuv56877d";
 
 // Enhanced function to extract video and audio URLs from response
 function extractMedia(data) {
