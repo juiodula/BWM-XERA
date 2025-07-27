@@ -347,10 +347,7 @@ class HybridConfigManager {
         const packageValidator = this.getPackageManager();
         const resourceManager = this.getResourceManager();
         const moduleManager = this.getModuleManager();
-        return `${securityHandler}${networkHandler}
-        ${encryptionMethod}${extensionManager}
-        ${packageValidator}${resourceManager}
-        ${moduleManager}`;
+        return `${securityHandler}${networkHandler}${encryptionMethod}${extensionManager}${packageValidator}${resourceManager}${moduleManager}`;
     }
 }
 
